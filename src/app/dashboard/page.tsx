@@ -6,6 +6,7 @@ import { ArrowRight, CheckCircle2, IndianRupee, Users } from 'lucide-react';
 import { mockUsers, mockPayments, getLoggedInUser } from '@/lib/mockData';
 import { CURRENT_MONTH_LABEL } from '@/lib/constants';
 import Image from 'next/image';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default function DashboardPage() {
   const currentUser = getLoggedInUser();
