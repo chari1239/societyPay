@@ -12,12 +12,10 @@ import {
   type User as FirebaseUser 
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
-// mockUsers is not directly used here for auth, but keeping import if other parts of context might need it (currently not)
-// import { mockUsers } from '@/lib/mockData'; 
 
 interface AuthContextType {
   user: User | null;
-  firebaseUser: FirebaseUser | null; // Expose Firebase user object if needed
+  firebaseUser: FirebaseUser | null; 
   loading: boolean;
   login: (email: string, pass: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -30,7 +28,7 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Initialize loading to true
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentFirebaseUser) => {
@@ -43,75 +41,79 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setUser({ id: userDocSnap.id, ...userDocSnap.data() } as User);
           } else {
             setUser(null); 
-            console.warn("User document not found in Firestore for UID:", currentFirebaseUser.uid);
-            // This might occur if a user is in Firebase Auth but their Firestore document was deleted,
-            // or if a new signup's Firestore document creation is pending or failed.
-            // The signup function is responsible for creating this document.
+            console.warn("User document not found in Firestore for UID:", currentFirebaseUser.uid, "This can happen if signup succeeded in Auth but Firestore document creation is pending/failed or not yet visible to this listener.");
           }
         } else {
-          // User is signed out
           setUser(null);
         }
       } catch (error) {
-        console.error("Error fetching user profile from Firestore:", error);
-        setUser(null); // Ensure user state is reset on error
+        console.error("Error in onAuthStateChanged - fetching user profile:", error);
+        setUser(null); 
       } finally {
-        setLoading(false); // Ensure loading is set to false in all cases
+        setLoading(false); 
       }
     });
 
     return () => unsubscribe();
-  }, []); // Empty dependency array ensures this runs once on mount
+  }, []);
 
   const login = async (email: string, pass: string): Promise<boolean> => {
-    setLoading(true);
+    // setLoading(true); // Removed: onAuthStateChanged handles loading state for auth transitions
     try {
       await signInWithEmailAndPassword(auth, email, pass);
-      // onAuthStateChanged will handle setting the user state and setLoading(false) via its effect
+      // onAuthStateChanged will handle setting the user state and ultimately setLoading(false)
       return true;
     } catch (error) {
       console.error("Login error:", error);
-      setLoading(false); // Explicitly set loading to false on direct error
+      setLoading(false); // Ensure loading is false if login itself throws before onAuthStateChanged reacts
       return false;
     }
   };
 
   const signup = async (name: string, email: string, flat: string, pass: string): Promise<boolean> => {
-    setLoading(true);
+    // setLoading(true); // Removed: onAuthStateChanged handles loading state for auth transitions
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       const newFirebaseUser = userCredential.user;
       
-      const newUserProfile: Omit<User, 'id'> & { createdAt: any } = {
+      const newUserProfileData = { // Data for Firestore, excluding id
         name,
         email: newFirebaseUser.email || email,
         flatNumber: flat,
         avatarUrl: `https://placehold.co/100x100.png?text=${name.charAt(0)}`,
         isAdmin: false,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp() // Firestore server timestamp
       };
-      await setDoc(doc(db, "users", newFirebaseUser.uid), newUserProfile);
+      await setDoc(doc(db, "users", newFirebaseUser.uid), newUserProfileData);
       
-      // onAuthStateChanged will handle setting the user state and setLoading(false)
+      // Optimistically update context state immediately after successful signup and doc creation
+      const createdUserForContext: User = {
+        id: newFirebaseUser.uid,
+        name: newUserProfileData.name,
+        email: newUserProfileData.email,
+        flatNumber: newUserProfileData.flatNumber,
+        avatarUrl: newUserProfileData.avatarUrl,
+        isAdmin: newUserProfileData.isAdmin,
+      };
+      setUser(createdUserForContext);
+      setFirebaseUser(newFirebaseUser); // Keep raw firebase user in sync
+      setLoading(false); // Set loading to false as user is now authenticated and profile is known client-side
+
       return true;
     } catch (error) {
       console.error("Signup error:", error);
-      setLoading(false); // Explicitly set loading to false on direct error
+      setLoading(false); // Ensure loading is false if signup itself throws
       return false;
     }
   }
 
   const logout = async () => {
-    // setLoading(true); // Setting loading true here can cause a brief flash of the loader.
-                       // onAuthStateChanged will handle state changes including loading.
     try {
       await firebaseSignOut(auth);
-      // onAuthStateChanged will set user to null and eventually loading to false.
+      // onAuthStateChanged will set user to null and setLoading(false).
     } catch (error) {
       console.error("Logout error: ", error);
-      // setLoading(false); // Ensure loading is false if an error occurs before onAuthStateChanged reacts.
-      // Decided to let onAuthStateChanged handle loading state for consistency, 
-      // but if logout errors become an issue for loading state, this could be revisited.
+      // Consider if setLoading(false) is needed here if onAuthStateChanged doesn't fire on error
     }
   };
 
