@@ -17,23 +17,30 @@ const firebaseConfig: FirebaseOptions = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-// --- TEMPORARY DEBUGGING LOG ---
+// --- Explicit Environment Variable Check ---
 // This will print to your SERVER console when the app starts.
-console.log("--- Firebase Configuration Check ---");
-console.log("Attempting to use Firebase config:");
-console.log(`API Key Loaded: ${firebaseConfig.apiKey ? 'YES (value hidden for security)' : 'NO - MISSING OR UNDEFINED'}`);
-console.log(`Auth Domain: ${firebaseConfig.authDomain || 'MISSING or undefined'}`);
-console.log(`Project ID: ${firebaseConfig.projectId || 'MISSING or undefined'}`);
-console.log("------------------------------------");
+console.log("--- Firebase Configuration Values Being Used ---");
+console.log(`NEXT_PUBLIC_FIREBASE_API_KEY: ${firebaseConfig.apiKey || 'NOT SET or undefined'}`);
+console.log(`NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${firebaseConfig.authDomain || 'NOT SET or undefined'}`);
+console.log(`NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${firebaseConfig.projectId || 'NOT SET or undefined'}`);
+console.log(`NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${firebaseConfig.storageBucket || 'NOT SET or undefined'}`);
+console.log(`NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${firebaseConfig.messagingSenderId || 'NOT SET or undefined'}`);
+console.log(`NEXT_PUBLIC_FIREBASE_APP_ID: ${firebaseConfig.appId || 'NOT SET or undefined'}`);
+console.log("-----------------------------------------------");
 
-if (!firebaseConfig.apiKey) {
-  console.error(
-    "CRITICAL Firebase Error: NEXT_PUBLIC_FIREBASE_API_KEY is missing or undefined. " +
-    "Please ensure it is correctly set in your .env.local file in the project root, " +
-    "and that you have RESTARTED your Next.js development server after any changes to .env.local."
-  );
+if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_ACTUAL_API_KEY_FROM_FIREBASE") {
+  const errorMessage =
+    "CRITICAL Firebase Setup Error: NEXT_PUBLIC_FIREBASE_API_KEY is missing, undefined, or still set to the placeholder value. " +
+    "This value is essential for Firebase to initialize. " +
+    "Please ensure it is correctly set in your .env.local file in the project root directory with your actual Firebase API key. " +
+    "After creating or updating .env.local, you MUST RESTART your Next.js development server for the changes to take effect. " +
+    "The .env.local file should look like:\n" +
+    "NEXT_PUBLIC_FIREBASE_API_KEY=your_actual_api_key\n" +
+    "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_actual_auth_domain\n" +
+    "...and so on for other Firebase config values.";
+  console.error(errorMessage);
+  throw new Error(errorMessage); // This will stop execution and show a clear error.
 }
-// --- END TEMPORARY DEBUGGING LOG ---
 
 // Initialize Firebase
 let app: FirebaseApp;
@@ -41,17 +48,44 @@ let app: FirebaseApp;
 if (!getApps().length) {
   try {
     app = initializeApp(firebaseConfig);
+    console.log("Firebase app initialized successfully.");
   } catch (error) {
-    console.error("Firebase critical initialization error:", error);
-    // If initializeApp fails, app will be undefined, and subsequent getAuth/getFirestore will fail.
-    // This explicit catch is to make the initialization failure very clear in logs.
+    console.error("Firebase critical initialization error during initializeApp:", error);
     // @ts-ignore // Allow app to be potentially unassigned if error occurs before assignment
     app = undefined;
+    throw error; // Re-throw the error from initializeApp if it happens
   }
 } else {
   app = getApp();
+  console.log("Firebase app already initialized, getting existing app.");
 }
 
-export const auth = getAuth(app!); // app should be defined if initialization didn't throw earlier
-export const db = getFirestore(app!); // app should be defined
+// Ensure app is defined before trying to use it
+if (!app) {
+    const appNotDefinedError = "Firebase app object is not defined after initialization attempt. This should not happen if the API key is valid and initializeApp did not throw an unhandled error.";
+    console.error(appNotDefinedError);
+    throw new Error(appNotDefinedError);
+}
+
+let authInstance;
+let dbInstance;
+
+try {
+  authInstance = getAuth(app);
+  console.log("Firebase Auth instance created successfully.");
+} catch (error) {
+  console.error("Error getting Firebase Auth instance:", error);
+  throw error; // Re-throw to halt further execution if auth can't be initialized
+}
+
+try {
+  dbInstance = getFirestore(app);
+  console.log("Firestore instance created successfully.");
+} catch (error) {
+  console.error("Error getting Firestore instance:", error);
+  throw error; // Re-throw to halt further execution if db can't be initialized
+}
+
+export const auth = authInstance;
+export const db = dbInstance;
 export default app;
