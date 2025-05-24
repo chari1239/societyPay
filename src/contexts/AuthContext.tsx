@@ -30,12 +30,11 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Initially true, set to false by onAuthStateChanged
   const { toast } = useToast();
 
   useEffect(() => {
-    console.log("AuthContext: useEffect for onAuthStateChanged mounting. Initial global loading state (before this effect):", loading);
-    setLoading(true); // Ensure loading is true when listener is being set up or auth state might change
+    console.log("AuthContext: useEffect for onAuthStateChanged mounting. Initial global loading state:", loading);
     const unsubscribe = onAuthStateChanged(auth, async (currentFirebaseUser) => {
       console.log("AuthContext: onAuthStateChanged triggered. Firebase UID:", currentFirebaseUser?.uid || 'none');
       setFirebaseUser(currentFirebaseUser); 
@@ -49,7 +48,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             console.log("AuthContext: User document FOUND in Firestore for UID:", currentFirebaseUser.uid, "Data:", userDocSnap.data());
             setUser({ id: userDocSnap.id, ...userDocSnap.data() } as User);
           } else {
-            console.warn("AuthContext: User document NOT FOUND in Firestore for UID:", currentFirebaseUser.uid, ". This might be temporary after signup or indicate an issue if user is expected.");
+            console.warn("AuthContext: User document NOT FOUND in Firestore for UID:", currentFirebaseUser.uid);
+             // If a user is authenticated with Firebase but has no Firestore profile document (e.g., manual deletion in DB, or incomplete signup)
+            // We should ensure the app user state is null.
             setUser(null);
           }
         } else {
@@ -58,9 +59,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       } catch (error) {
         console.error("AuthContext: Error in onAuthStateChanged while fetching/processing user profile:", error);
-        setUser(null);
+        setUser(null); // On error, ensure user is null
         const firebaseError = error as FirebaseError;
-        if (firebaseError.code !== 'unavailable' && firebaseError.code !== 'failed-precondition') {
+        if (firebaseError.code !== 'unavailable' && firebaseError.code !== 'failed-precondition' && firebaseError.code !== 'cancelled') {
             toast({
                 title: "Profile Load Error",
                 description: `Could not load user profile. ${firebaseError.message || 'Please check your connection.'}`,
@@ -69,7 +70,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       } finally {
         console.log("AuthContext: onAuthStateChanged finally block. Setting global loading state to false.");
-        setLoading(false);
+        setLoading(false); // This is now the primary place global loading becomes false.
       }
     });
 
@@ -77,26 +78,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log("AuthContext: useEffect for onAuthStateChanged unmounting.");
       unsubscribe();
     }
-  }, [toast]);
+  }, [toast]); // Dependency array for onAuthStateChanged effect
 
   const login = async (email: string, pass: string): Promise<boolean> => {
     console.log("AuthContext: login initiated for", email);
-    // setLoading(true); // Let onAuthStateChanged handle this
     try {
       await signInWithEmailAndPassword(auth, email, pass);
       console.log("AuthContext: signInWithEmailAndPassword successful for", email);
-      // setLoading(false) will be handled by onAuthStateChanged
+      // onAuthStateChanged will handle setting user and loading states.
       return true;
     } catch (error) {
       console.error("AuthContext: Login error:", error);
-      // setLoading(false); // Ensure loading becomes false if login fails before onAuthStateChanged can run
       return false;
     }
   };
 
   const signup = async (name: string, email: string, flat: string, pass: string): Promise<{ success: boolean; error?: { code?: string; message?: string } }> => {
     console.log("AuthContext: signup initiated for", email);
-    // setLoading(true); // Handled by onAuthStateChanged for the main loading, form handles its own.
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       const newFirebaseUser = userCredential.user;
@@ -113,6 +111,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await setDoc(doc(db, "users", newFirebaseUser.uid), newUserProfileData);
       console.log("AuthContext: Firestore user document created for:", newFirebaseUser.uid);
       
+      // Optimistic update for user and firebaseUser to allow immediate UI changes if needed,
+      // but DO NOT set global loading to false here. onAuthStateChanged will handle that.
       const createdUserForContext: User = {
         id: newFirebaseUser.uid,
         name: newUserProfileData.name,
@@ -122,32 +122,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isAdmin: newUserProfileData.isAdmin,
       };
       
-      console.log("AuthContext: Optimistically setting user and firebaseUser in context post-signup. Setting global loading to false.");
-      setUser(createdUserForContext); // Optimistic update
-      setFirebaseUser(newFirebaseUser); // Optimistic update
-      setLoading(false); // Crucial: Signal that this specific auth flow (signup) is complete.
-                         // onAuthStateChanged will still run to confirm.
+      console.log("AuthContext: Optimistically setting user and firebaseUser in context post-signup.");
+      setUser(createdUserForContext); 
+      setFirebaseUser(newFirebaseUser);
+      // DO NOT setLoading(false) here. Let onAuthStateChanged be the sole source of truth for global loading.
       
       return { success: true };
     } catch (error) {
       console.error("AuthContext: Signup error:", error);
       const firebaseError = error as FirebaseError;
-      // setLoading(false); // Ensure loading is false if signup itself throws an error.
       return { success: false, error: { code: firebaseError.code, message: firebaseError.message } };
     }
   }
 
   const logout = async () => {
     console.log("AuthContext: logout initiated.");
-    // setLoading(true); // To show loader briefly during logout process
     try {
       await firebaseSignOut(auth);
       console.log("AuthContext: firebaseSignOut successful.");
-      // setUser(null) and setFirebaseUser(null) will be handled by onAuthStateChanged
-      // setLoading(false) will also be handled by onAuthStateChanged
+      // onAuthStateChanged will handle setting user to null and loading to false.
     } catch (error) {
       console.error("AuthContext: Logout error: ", error);
-      // setLoading(false); // Ensure loading is false on error
     }
   };
 
@@ -158,7 +153,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  console.log("AuthContext: Rendering AuthProvider. Current user:", user, "FirebaseUser:", firebaseUser, "Loading:", loading);
+  console.log("AuthContext: Rendering AuthProvider. Current user:", user?.email, "FirebaseUser UID:", firebaseUser?.uid, "Loading:", loading);
   return (
     <AuthContext.Provider value={{ user, firebaseUser, loading, login, logout, signup, updateUserProfileInContext }}>
       {children}
