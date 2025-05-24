@@ -1,6 +1,6 @@
 
 export interface User {
-  id: string;
+  id: string; // Firebase Auth UID
   name: string;
   email: string;
   flatNumber: string;
@@ -9,8 +9,8 @@ export interface User {
 }
 
 export interface Payment {
-  id: string;
-  userId: string;
+  id: string; // Firestore document ID
+  userId: string; // Firebase Auth UID of the user who made the payment
   userName: string; 
   userAvatar?: string;
   amount: number;
@@ -23,8 +23,8 @@ export interface Payment {
 }
 
 export interface Reminder {
-  id: string;
-  userId: string;
+  id: string; // Firestore document ID
+  userId: string; // Firebase Auth UID of the user
   userName: string;
   flatNumber: string;
   dueDate: string; // ISO string

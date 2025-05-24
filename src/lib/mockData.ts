@@ -1,8 +1,14 @@
-import type { User, Payment, Reminder } from '@/types';
-import { MOCK_USER_ID, CURRENT_MONTH_LABEL, CURRENT_MONTH_VALUE } from './constants';
 
+import type { User, Payment, Reminder } from '@/types';
+// MOCK_USER_ID is no longer relevant as auth is handled by Firebase.
+// export const MOCK_USER_ID = 'user123'; 
+import { CURRENT_MONTH_LABEL, CURRENT_MONTH_VALUE } from './constants';
+
+// This mockUsers array might still be used by features not yet migrated to Firebase (e.g., full resident list for status page).
+// However, for authentication and current user profile, AuthContext and Firebase are the source of truth.
 export const mockUsers: User[] = [
-  { id: MOCK_USER_ID, name: 'John Doe', email: 'john.doe@example.com', flatNumber: 'A-101', avatarUrl: 'https://placehold.co/100x100.png', isAdmin: true },
+  // { id: MOCK_USER_ID, name: 'John Doe', email: 'john.doe@example.com', flatNumber: 'A-101', avatarUrl: 'https://placehold.co/100x100.png', isAdmin: true },
+  { id: 'firebase-uid-placeholder-001', name: 'John Doe (Mock)', email: 'john.doe@example.com', flatNumber: 'A-101', avatarUrl: 'https://placehold.co/100x100.png', isAdmin: true },
   { id: 'user002', name: 'Jane Smith', email: 'jane.smith@example.com', flatNumber: 'A-102', avatarUrl: 'https://placehold.co/100x100.png' },
   { id: 'user003', name: 'Mike Johnson', email: 'mike.johnson@example.com', flatNumber: 'B-205', avatarUrl: 'https://placehold.co/100x100.png' },
   { id: 'user004', name: 'Sarah Brown', email: 'sarah.brown@example.com', flatNumber: 'C-301', avatarUrl: 'https://placehold.co/100x100.png' },
@@ -12,8 +18,8 @@ export const mockUsers: User[] = [
 export const mockPayments: Payment[] = [
   { 
     id: 'payment001', 
-    userId: MOCK_USER_ID, 
-    userName: 'John Doe',
+    userId: 'firebase-uid-placeholder-001', // This ID should ideally match a Firebase UID if this data were to be used with the new auth.
+    userName: 'John Doe (Mock)',
     userAvatar: 'https://placehold.co/100x100.png',
     amount: 2500, 
     paymentDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago
@@ -51,7 +57,9 @@ export const mockPayments: Payment[] = [
 ];
 
 // To reflect users who haven't paid for the current month for the status page
+// This function will need to be updated to use Firebase data.
 export const getHouseholdPaymentStatus = (monthValue: string = CURRENT_MONTH_VALUE): User[] => {
+  console.warn("getHouseholdPaymentStatus is using mock data and needs to be updated for Firebase.")
   return mockUsers.map(user => {
     const payment = mockPayments.find(p => p.userId === user.id && p.month === monthValueToLabel(monthValue));
     return {
@@ -92,4 +100,10 @@ export const mockReminders: Reminder[] = [
   },
 ];
 
-export const getLoggedInUser = (): User | undefined => mockUsers.find(u => u.id === MOCK_USER_ID);
+// getLoggedInUser is no longer the source of truth. useAuth().user from AuthContext should be used.
+// export const getLoggedInUser = (): User | undefined => mockUsers.find(u => u.id === MOCK_USER_ID);
+// Commenting out to prevent usage. Code relying on this will need to be updated.
+export const getLoggedInUser = (): User | undefined => {
+  console.warn("getLoggedInUser from mockData is deprecated. Use useAuth().user instead.");
+  return undefined; 
+};
