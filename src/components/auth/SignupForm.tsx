@@ -42,33 +42,42 @@ export function SignupForm() {
 
   const onSubmit = async (data: SignupFormValues) => {
     setIsLoading(true);
-    const result = await signup(data.name, data.email, data.flatNumber, data.password);
-    setIsLoading(false);
-    if (result.success) {
-      router.push('/dashboard');
-      toast({ title: "Signup Successful", description: "Welcome to SocietyPay!" });
-    } else {
-      let errorTitle = "Signup Failed";
-      let errorMessage = "An error occurred during signup. Please try again.";
+    try {
+      const result = await signup(data.name, data.email, data.flatNumber, data.password);
+      
+      if (result.success) {
+        toast({ title: "Signup Successful", description: "Welcome to SocietyPay!" });
+        router.push('/dashboard');
+      } else {
+        let errorTitle = "Signup Failed";
+        let errorMessage = "An error occurred during signup. Please try again.";
 
-      if (result.error) {
-        console.error("SignupForm: Error from AuthContext:", result.error);
-        if (result.error.code === 'auth/network-request-failed') {
-          errorTitle = "Network Error";
-          errorMessage = "A network error occurred. Please check your internet connection and try again.";
-        } else if (result.error.code === 'auth/email-already-in-use') {
-          errorMessage = "This email address is already in use. Please try logging in or use a different email.";
-          form.setError("email", { type: "manual", message: "This email is already in use." });
-        } else {
-          // Use the Firebase error message if available and not too cryptic
-          errorMessage = result.error.message || errorMessage;
+        if (result.error) {
+          console.error("SignupForm: Error from AuthContext:", result.error);
+          if (result.error.code === 'auth/network-request-failed') {
+            errorTitle = "Network Error";
+            errorMessage = "A network error occurred. Please check your internet connection and try again.";
+          } else if (result.error.code === 'auth/email-already-in-use') {
+            errorMessage = "This email address is already in use. Please try logging in or use a different email.";
+            form.setError("email", { type: "manual", message: "This email is already in use." });
+          } else {
+            // Use the Firebase error message if available and not too cryptic
+            errorMessage = result.error.message || errorMessage;
+          }
+        }
+        
+        toast({ title: errorTitle, description: errorMessage, variant: "destructive" });
+        if (result.error?.code !== 'auth/email-already-in-use') { 
+           form.setError("root", { message: errorMessage });
         }
       }
-      
-      toast({ title: errorTitle, description: errorMessage, variant: "destructive" });
-      if (result.error?.code !== 'auth/email-already-in-use') { // Don't set root error if it's a specific field error
-         form.setError("root", { message: errorMessage });
-      }
+    } catch (error) { 
+      // Catch any unexpected errors from the signup call itself or during result processing
+      console.error("SignupForm: Unexpected error during signup process:", error);
+      toast({ title: "Signup Error", description: "An unexpected error occurred. Please try again.", variant: "destructive" });
+      form.setError("root", { message: "An unexpected error occurred. Please check your internet connection and try again." });
+    } finally {
+      setIsLoading(false); // Ensure this always runs
     }
   };
 
