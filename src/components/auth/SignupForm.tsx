@@ -41,45 +41,68 @@ export function SignupForm() {
   });
 
   const onSubmit = async (data: SignupFormValues) => {
+    console.log("SignupForm: onSubmit started. Initial isLoading:", isLoading);
     setIsLoading(true);
-    try {
-      const result = await signup(data.name, data.email, data.flatNumber, data.password);
-      
-      if (result.success) {
-        toast({ title: "Signup Successful", description: "Welcome to SocietyPay!" });
-        router.push('/dashboard');
-      } else {
-        let errorTitle = "Signup Failed";
-        let errorMessage = "An error occurred during signup. Please try again.";
+    console.log("SignupForm: setIsLoading(true) called. Current isLoading:", true);
 
-        if (result.error) {
-          console.error("SignupForm: Error from AuthContext:", result.error);
-          if (result.error.code === 'auth/network-request-failed') {
-            errorTitle = "Network Error";
-            errorMessage = "A network error occurred. Please check your internet connection and try again.";
-          } else if (result.error.code === 'auth/email-already-in-use') {
-            errorMessage = "This email address is already in use. Please try logging in or use a different email.";
-            form.setError("email", { type: "manual", message: "This email is already in use." });
-          } else {
-            // Use the Firebase error message if available and not too cryptic
-            errorMessage = result.error.message || errorMessage;
-          }
-        }
-        
-        toast({ title: errorTitle, description: errorMessage, variant: "destructive" });
-        if (result.error?.code !== 'auth/email-already-in-use') { 
-           form.setError("root", { message: errorMessage });
-        }
-      }
-    } catch (error) { 
-      // Catch any unexpected errors from the signup call itself or during result processing
-      console.error("SignupForm: Unexpected error during signup process:", error);
-      toast({ title: "Signup Error", description: "An unexpected error occurred. Please try again.", variant: "destructive" });
-      form.setError("root", { message: "An unexpected error occurred. Please check your internet connection and try again." });
-    } finally {
-      setIsLoading(false); // Ensure this always runs
+    let signupResult: { success: boolean; error?: { code?: string; message?: string } } | undefined;
+
+    try {
+      console.log("SignupForm: Calling signup from AuthContext with data:", data);
+      signupResult = await signup(data.name, data.email, data.flatNumber, data.password);
+      console.log("SignupForm: AuthContext.signup returned:", signupResult);
+
+    } catch (error) {
+      // This catch is for truly unexpected errors from the signup call itself,
+      // though AuthContext.signup is designed to return errors in its result object.
+      console.error("SignupForm: Unexpected error during signup invocation:", error);
+      // Ensure signupResult is structured to indicate failure
+      signupResult = { 
+        success: false, 
+        error: { 
+          message: error instanceof Error ? error.message : "An unexpected error occurred during signup invocation." 
+        } 
+      };
     }
+
+    console.log("SignupForm: Setting isLoading to false.");
+    setIsLoading(false); 
+    // It's good to log the state immediately after setting it, but React batches updates,
+    // so this log might show the old value. The re-render will use the new value.
+    // console.log("SignupForm: setIsLoading(false) called. Current isLoading (may be stale in this log):", isLoading);
+
+
+    if (signupResult && signupResult.success) {
+      console.log("SignupForm: Signup success. Toasting and redirecting...");
+      toast({ title: "Signup Successful", description: "Welcome to SocietyPay!" });
+      router.push('/dashboard');
+      console.log("SignupForm: Redirect to dashboard initiated.");
+    } else {
+      console.log("SignupForm: Signup failed or signupResult is undefined. Processing error.");
+      let errorTitle = "Signup Failed";
+      let errorMessage = signupResult?.error?.message || "An error occurred during signup. Please try again.";
+
+      if (signupResult?.error?.code === 'auth/network-request-failed') {
+        errorTitle = "Network Error";
+        errorMessage = "A network error occurred. Please check your internet connection and try again.";
+      } else if (signupResult?.error?.code === 'auth/email-already-in-use') {
+        errorMessage = "This email address is already in use. Please try logging in or use a different email.";
+        form.setError("email", { type: "manual", message: "This email is already in use." });
+      }
+      // Add other specific error code handling if needed
+
+      console.log(`SignupForm: Toasting error - Title: ${errorTitle}, Message: ${errorMessage}`);
+      toast({ title: errorTitle, description: errorMessage, variant: "destructive" });
+      
+      if (signupResult?.error?.code !== 'auth/email-already-in-use') { 
+         form.setError("root", { message: errorMessage });
+         console.log("SignupForm: Set form.setError('root')");
+      }
+    }
+    console.log("SignupForm: onSubmit finished.");
   };
+
+  // console.log("SignupForm: Rendering. Current isLoading state:", isLoading); // Log isLoading on each render
 
   return (
     <Card className="w-full max-w-md shadow-xl">
@@ -122,7 +145,7 @@ export function SignupForm() {
           )}
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Create Account
+            {isLoading ? 'Processing...' : 'Create Account'}
           </Button>
         </form>
       </CardContent>
@@ -137,3 +160,4 @@ export function SignupForm() {
     </Card>
   );
 }
+
