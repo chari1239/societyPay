@@ -41,9 +41,9 @@ export function SignupForm() {
   });
 
   const onSubmit = async (data: SignupFormValues) => {
-    console.log("SignupForm: onSubmit started. Initial isLoading:", isLoading);
+    console.log("SignupForm: onSubmit triggered. Initial isLoading:", isLoading);
     setIsLoading(true);
-    console.log("SignupForm: setIsLoading(true) called. Current isLoading:", true);
+    console.log("SignupForm: setIsLoading(true) called. Current isLoading:", true, "Form data:", data);
 
     let signupResult: { success: boolean; error?: { code?: string; message?: string } } | undefined;
 
@@ -51,34 +51,33 @@ export function SignupForm() {
       console.log("SignupForm: Calling signup from AuthContext with data:", data);
       signupResult = await signup(data.name, data.email, data.flatNumber, data.password);
       console.log("SignupForm: AuthContext.signup returned:", signupResult);
-
     } catch (error) {
-      // This catch is for truly unexpected errors from the signup call itself,
-      // though AuthContext.signup is designed to return errors in its result object.
-      console.error("SignupForm: Unexpected error during signup invocation:", error);
-      // Ensure signupResult is structured to indicate failure
+      // This catch is primarily for UNEXPECTED errors during the signup call itself,
+      // though AuthContext.signup is designed to return its own errors in signupResult.
+      console.error("SignupForm: Unexpected error during signup() invocation:", error);
       signupResult = { 
         success: false, 
         error: { 
-          message: error instanceof Error ? error.message : "An unexpected error occurred during signup invocation." 
+          code: 'form-invocation-error',
+          message: error instanceof Error ? error.message : "An unexpected error occurred calling signup." 
         } 
       };
+    } finally {
+      console.log("SignupForm: In finally block. Setting isLoading to false.");
+      setIsLoading(false);
+      // Log state immediately after setting it, though React batches updates.
+      // The re-render will use the new value.
+      console.log("SignupForm: setIsLoading(false) just called.");
     }
 
-    console.log("SignupForm: Setting isLoading to false.");
-    setIsLoading(false); 
-    // It's good to log the state immediately after setting it, but React batches updates,
-    // so this log might show the old value. The re-render will use the new value.
-    // console.log("SignupForm: setIsLoading(false) called. Current isLoading (may be stale in this log):", isLoading);
-
-
+    // Proceed with logic based on signupResult
     if (signupResult && signupResult.success) {
       console.log("SignupForm: Signup success. Toasting and redirecting...");
       toast({ title: "Signup Successful", description: "Welcome to SocietyPay!" });
       router.push('/dashboard');
       console.log("SignupForm: Redirect to dashboard initiated.");
     } else {
-      console.log("SignupForm: Signup failed or signupResult is undefined. Processing error.");
+      console.log("SignupForm: Signup failed or signupResult is undefined/false. Processing error.");
       let errorTitle = "Signup Failed";
       let errorMessage = signupResult?.error?.message || "An error occurred during signup. Please try again.";
 
@@ -96,13 +95,13 @@ export function SignupForm() {
       
       if (signupResult?.error?.code !== 'auth/email-already-in-use') { 
          form.setError("root", { message: errorMessage });
-         console.log("SignupForm: Set form.setError('root')");
+         console.log("SignupForm: Set form.setError('root') with message:", errorMessage);
       }
     }
     console.log("SignupForm: onSubmit finished.");
   };
-
-  // console.log("SignupForm: Rendering. Current isLoading state:", isLoading); // Log isLoading on each render
+  
+  console.log("SignupForm: Rendering component. Current isLoading state on render:", isLoading);
 
   return (
     <Card className="w-full max-w-md shadow-xl">
@@ -160,4 +159,3 @@ export function SignupForm() {
     </Card>
   );
 }
-
